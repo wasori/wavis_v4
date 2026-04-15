@@ -1,5 +1,6 @@
 from pathlib import Path
 from datetime import datetime
+import json
 import os
 import socket
 
@@ -59,6 +60,20 @@ def is_live_mode() -> bool:
     return SETTINGS["app_mode"].lower() == "live"
 
 
+def get_signal_state_path() -> Path:
+    return PROJECT_ROOT / SETTINGS["state_dir"] / "signal_state.json"
+
+
+def read_json_file(file_path: Path) -> dict | None:
+    if not file_path.exists():
+        return None
+
+    try:
+        return json.loads(file_path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+
 app = FastAPI(
     title="WAVIS v4",
     version="0.1.0",
@@ -103,6 +118,9 @@ def health() -> dict:
 
 @app.get("/status")
 def status() -> dict:
+    signal_state_path = get_signal_state_path()
+    signal_state = read_json_file(signal_state_path)
+
     return {
         "service": "wavis_v4",
         "version": "0.1.0",
@@ -118,5 +136,8 @@ def status() -> dict:
             "log_dir": str(PROJECT_ROOT / SETTINGS["log_dir"]),
             "state_dir": str(PROJECT_ROOT / SETTINGS["state_dir"]),
             "engine_lock_file": str(PROJECT_ROOT / SETTINGS["engine_lock_file"]),
+            "signal_state_file": str(signal_state_path),
+            "signal_state_exists": signal_state_path.exists(),
         },
+        "signal_state": signal_state,
     }
