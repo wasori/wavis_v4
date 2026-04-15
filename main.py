@@ -11,7 +11,6 @@ from fastapi import FastAPI
 PROJECT_ROOT = Path(__file__).resolve().parent
 ENV_PATH = PROJECT_ROOT / ".env"
 
-# .env 파일이 있으면 로드, 없어도 기본값으로 실행 가능
 load_dotenv(dotenv_path=ENV_PATH, override=False)
 
 
@@ -64,6 +63,10 @@ def get_signal_state_path() -> Path:
     return PROJECT_ROOT / SETTINGS["state_dir"] / "signal_state.json"
 
 
+def get_engine_lock_path() -> Path:
+    return PROJECT_ROOT / SETTINGS["engine_lock_file"]
+
+
 def read_json_file(file_path: Path) -> dict | None:
     if not file_path.exists():
         return None
@@ -94,6 +97,7 @@ def on_startup() -> None:
     print(f"실거래 가능 여부  : {is_live_mode()}")
     print(f"LOG_DIR           : {SETTINGS['log_dir']}")
     print(f"STATE_DIR         : {SETTINGS['state_dir']}")
+    print(f"ENGINE_LOCK_FILE  : {SETTINGS['engine_lock_file']}")
     print("=" * 60)
 
 
@@ -119,7 +123,10 @@ def health() -> dict:
 @app.get("/status")
 def status() -> dict:
     signal_state_path = get_signal_state_path()
+    engine_lock_path = get_engine_lock_path()
+
     signal_state = read_json_file(signal_state_path)
+    engine_lock = read_json_file(engine_lock_path)
 
     return {
         "service": "wavis_v4",
@@ -135,9 +142,11 @@ def status() -> dict:
             "env_file_exists": ENV_PATH.exists(),
             "log_dir": str(PROJECT_ROOT / SETTINGS["log_dir"]),
             "state_dir": str(PROJECT_ROOT / SETTINGS["state_dir"]),
-            "engine_lock_file": str(PROJECT_ROOT / SETTINGS["engine_lock_file"]),
+            "engine_lock_file": str(engine_lock_path),
+            "engine_lock_exists": engine_lock_path.exists(),
             "signal_state_file": str(signal_state_path),
             "signal_state_exists": signal_state_path.exists(),
         },
         "signal_state": signal_state,
+        "engine_lock": engine_lock,
     }
