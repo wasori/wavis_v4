@@ -59,8 +59,20 @@ def is_live_mode() -> bool:
     return SETTINGS["app_mode"].lower() == "live"
 
 
+def get_state_dir() -> Path:
+    return PROJECT_ROOT / SETTINGS["state_dir"]
+
+
 def get_signal_state_path() -> Path:
-    return PROJECT_ROOT / SETTINGS["state_dir"] / "signal_state.json"
+    return get_state_dir() / "signal_state.json"
+
+
+def get_position_state_path() -> Path:
+    return get_state_dir() / "position_state.json"
+
+
+def get_trade_loop_status_path() -> Path:
+    return get_state_dir() / "trade_loop_status.json"
 
 
 def get_engine_lock_path() -> Path:
@@ -123,9 +135,13 @@ def health() -> dict:
 @app.get("/status")
 def status() -> dict:
     signal_state_path = get_signal_state_path()
+    position_state_path = get_position_state_path()
+    trade_loop_status_path = get_trade_loop_status_path()
     engine_lock_path = get_engine_lock_path()
 
     signal_state = read_json_file(signal_state_path)
+    position_state = read_json_file(position_state_path)
+    trade_loop_status = read_json_file(trade_loop_status_path)
     engine_lock = read_json_file(engine_lock_path)
 
     return {
@@ -146,7 +162,13 @@ def status() -> dict:
             "engine_lock_exists": engine_lock_path.exists(),
             "signal_state_file": str(signal_state_path),
             "signal_state_exists": signal_state_path.exists(),
+            "position_state_file": str(position_state_path),
+            "position_state_exists": position_state_path.exists(),
+            "trade_loop_status_file": str(trade_loop_status_path),
+            "trade_loop_status_exists": trade_loop_status_path.exists(),
         },
         "signal_state": signal_state,
+        "position_state": position_state,
+        "trade_loop_status": trade_loop_status,
         "engine_lock": engine_lock,
     }
