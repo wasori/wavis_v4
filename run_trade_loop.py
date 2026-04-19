@@ -1,18 +1,22 @@
 from __future__ import annotations
 
-from pathlib import Path
 from datetime import datetime
 import json
 import sys
 import time
 
-from run_trade_cycle import (
-    load_env,
-    get_now_iso,
+from dotenv import load_dotenv
+
+from project_paths import (
+    get_env_path,
     get_env_str,
-    get_trade_symbols,
-    get_state_dir,
+    get_project_root,
     get_log_dir,
+    get_trade_loop_status_path,
+)
+from run_trade_cycle import (
+    get_now_iso,
+    get_trade_symbols,
     analyze_market,
     save_signal_state,
     get_position_state,
@@ -24,7 +28,10 @@ from run_trade_cycle import (
 )
 
 
-PROJECT_ROOT = Path(__file__).resolve().parent
+ENV_PATH = get_env_path()
+PROJECT_ROOT = get_project_root()
+
+load_dotenv(dotenv_path=ENV_PATH, override=False)
 
 
 def get_env_int(key: str, default: int) -> int:
@@ -35,7 +42,7 @@ def get_env_int(key: str, default: int) -> int:
         return default
 
 
-def write_json_file(file_path: Path, payload: dict) -> None:
+def write_json_file(file_path, payload: dict) -> None:
     file_path.parent.mkdir(parents=True, exist_ok=True)
     file_path.write_text(
         json.dumps(payload, ensure_ascii=False, indent=2),
@@ -53,9 +60,8 @@ def save_loop_status(
     last_next_action: str,
     last_message: str,
     is_running: bool,
-) -> Path:
-    state_dir = get_state_dir()
-    status_path = state_dir / "trade_loop_status.json"
+):
+    status_path = get_trade_loop_status_path()
 
     payload = {
         "service": "wavis_v4",
@@ -81,9 +87,8 @@ def append_loop_history(
     *,
     cycle_no: int,
     cycle_result: dict,
-) -> Path:
-    log_dir = get_log_dir()
-    history_path = log_dir / "trade_loop_history.log"
+):
+    history_path = get_log_dir() / "trade_loop_history.log"
 
     history_line = (
         f"{cycle_result.get('generated_at')} | "
@@ -138,8 +143,6 @@ def run_one_cycle(cycle_no: int) -> dict:
 
 def main() -> None:
     try:
-        load_env()
-
         interval_seconds = get_env_int("LOOP_INTERVAL_SECONDS", 30)
         max_cycles = get_env_int("LOOP_MAX_CYCLES", 0)  # 0이면 무한 반복
         app_mode = get_env_str("APP_MODE", "test")

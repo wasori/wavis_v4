@@ -1,15 +1,27 @@
-from pathlib import Path
+from __future__ import annotations
+
 from datetime import datetime
 import json
-import os
 import socket
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
 
+from project_paths import (
+    get_env_path,
+    get_env_str,
+    get_project_root,
+    get_log_dir,
+    get_state_dir,
+    get_engine_lock_path,
+    get_signal_state_path,
+    get_position_state_path,
+    get_trade_loop_status_path,
+)
 
-PROJECT_ROOT = Path(__file__).resolve().parent
-ENV_PATH = PROJECT_ROOT / ".env"
+
+PROJECT_ROOT = get_project_root()
+ENV_PATH = get_env_path()
 
 load_dotenv(dotenv_path=ENV_PATH, override=False)
 
@@ -18,13 +30,8 @@ def get_now_iso() -> str:
     return datetime.now().astimezone().isoformat(timespec="seconds")
 
 
-def get_env_str(key: str, default: str) -> str:
-    value = os.getenv(key, default)
-    return value.strip() if isinstance(value, str) else default
-
-
 def get_env_int(key: str, default: int) -> int:
-    value = os.getenv(key, str(default)).strip()
+    value = get_env_str(key, str(default)).strip()
     try:
         return int(value)
     except ValueError:
@@ -48,38 +55,15 @@ APP_STARTED_AT = get_now_iso()
 
 
 def ensure_runtime_dirs() -> None:
-    log_dir = PROJECT_ROOT / SETTINGS["log_dir"]
-    state_dir = PROJECT_ROOT / SETTINGS["state_dir"]
-
-    log_dir.mkdir(parents=True, exist_ok=True)
-    state_dir.mkdir(parents=True, exist_ok=True)
+    get_log_dir()
+    get_state_dir()
 
 
 def is_live_mode() -> bool:
     return SETTINGS["app_mode"].lower() == "live"
 
 
-def get_state_dir() -> Path:
-    return PROJECT_ROOT / SETTINGS["state_dir"]
-
-
-def get_signal_state_path() -> Path:
-    return get_state_dir() / "signal_state.json"
-
-
-def get_position_state_path() -> Path:
-    return get_state_dir() / "position_state.json"
-
-
-def get_trade_loop_status_path() -> Path:
-    return get_state_dir() / "trade_loop_status.json"
-
-
-def get_engine_lock_path() -> Path:
-    return PROJECT_ROOT / SETTINGS["engine_lock_file"]
-
-
-def read_json_file(file_path: Path) -> dict | None:
+def read_json_file(file_path) -> dict | None:
     if not file_path.exists():
         return None
 
@@ -156,8 +140,8 @@ def status() -> dict:
         "paths": {
             "project_root": str(PROJECT_ROOT),
             "env_file_exists": ENV_PATH.exists(),
-            "log_dir": str(PROJECT_ROOT / SETTINGS["log_dir"]),
-            "state_dir": str(PROJECT_ROOT / SETTINGS["state_dir"]),
+            "log_dir": str(get_log_dir()),
+            "state_dir": str(get_state_dir()),
             "engine_lock_file": str(engine_lock_path),
             "engine_lock_exists": engine_lock_path.exists(),
             "signal_state_file": str(signal_state_path),

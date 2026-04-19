@@ -3,33 +3,31 @@ from __future__ import annotations
 from pathlib import Path
 from datetime import datetime
 import json
-import os
 import socket
 import sys
 
 from dotenv import load_dotenv
 
 
-PROJECT_ROOT = Path(__file__).resolve().parent
-ENV_PATH = PROJECT_ROOT / ".env"
+CURRENT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = CURRENT_DIR.parent
+
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from project_paths import (  # noqa: E402
+    get_env_path,
+    get_env_str,
+    get_engine_lock_path,
+)
 
 
-def load_env() -> None:
-    load_dotenv(dotenv_path=ENV_PATH, override=False)
+ENV_PATH = get_env_path()
+load_dotenv(dotenv_path=ENV_PATH, override=False)
 
 
 def get_now_iso() -> str:
     return datetime.now().astimezone().isoformat(timespec="seconds")
-
-
-def get_env_str(key: str, default: str) -> str:
-    value = os.getenv(key, default)
-    return value.strip() if isinstance(value, str) else default
-
-
-def get_engine_lock_path() -> Path:
-    lock_file_value = get_env_str("ENGINE_LOCK_FILE", "state/engine_lock.json")
-    return PROJECT_ROOT / lock_file_value
 
 
 def read_json_file(file_path: Path) -> dict | None:
@@ -58,8 +56,6 @@ def print_header(title: str) -> None:
 
 def main() -> None:
     try:
-        load_env()
-
         now_str = get_now_iso()
         device_id = get_env_str("DEVICE_ID", "unknown-device")
         app_mode = get_env_str("APP_MODE", "test").lower()

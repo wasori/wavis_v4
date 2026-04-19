@@ -1,29 +1,29 @@
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 from datetime import datetime
 import json
-import os
 import sys
 
 import pandas as pd
 import requests
 from dotenv import load_dotenv
 
+from project_paths import (
+    get_env_path,
+    get_env_str,
+    get_project_root,
+    get_log_dir,
+    get_state_dir,
+    get_signal_state_path,
+)
 
-PROJECT_ROOT = Path(__file__).resolve().parent
-ENV_PATH = PROJECT_ROOT / ".env"
+
+ENV_PATH = get_env_path()
+PROJECT_ROOT = get_project_root()
 BASE_URL = "https://api.upbit.com"
 
-
-def load_env() -> None:
-    load_dotenv(dotenv_path=ENV_PATH, override=False)
-
-
-def get_env_str(key: str, default: str) -> str:
-    value = os.getenv(key, default)
-    return value.strip() if isinstance(value, str) else default
+load_dotenv(dotenv_path=ENV_PATH, override=False)
 
 
 def get_trade_symbols() -> list[str]:
@@ -52,6 +52,8 @@ def get_candles(market: str, unit: int, count: int) -> list[dict[str, Any]]:
 
 def candles_to_df(candles: list[dict[str, Any]]) -> pd.DataFrame:
     df = pd.DataFrame(candles)
+
+    # 업비트 캔들은 최신봉 -> 과거봉 순서이므로 뒤집어준다.
     df = df.iloc[::-1].reset_index(drop=True)
 
     rename_map = {
@@ -77,8 +79,10 @@ def add_ema(df: pd.DataFrame, period: int) -> pd.Series:
 def prepare_df(market: str, unit: int, count: int) -> pd.DataFrame:
     candles = get_candles(market=market, unit=unit, count=count)
     df = candles_to_df(candles)
+
     df["ema20"] = add_ema(df, 20)
     df["ema60"] = add_ema(df, 60)
+
     return df
 
 
@@ -202,25 +206,11 @@ def build_report(
     return report_text, summary_line
 
 
-def ensure_log_dir() -> Path:
-    log_dir_name = get_env_str("LOG_DIR", "logs")
-    log_dir = PROJECT_ROOT / log_dir_name
-    log_dir.mkdir(parents=True, exist_ok=True)
-    return log_dir
-
-
-def ensure_state_dir() -> Path:
-    state_dir_name = get_env_str("STATE_DIR", "state")
-    state_dir = PROJECT_ROOT / state_dir_name
-    state_dir.mkdir(parents=True, exist_ok=True)
-    return state_dir
-
-
 def market_to_filename(market: str) -> str:
     return market.replace("-", "_")
 
 
-def save_market_logs(log_dir: Path, market: str, report_text: str, summary_line: str) -> tuple[Path, Path]:
+def save_market_logs(log_dir, market: str, report_text: str, summary_line: str) -> tuple:
     safe_name = market_to_filename(market)
     latest_path = log_dir / f"signal_latest_{safe_name}.txt"
     history_path = log_dir / "signal_history.log"
@@ -233,7 +223,7 @@ def save_market_logs(log_dir: Path, market: str, report_text: str, summary_line:
     return latest_path, history_path
 
 
-def save_summary_report(log_dir: Path, content: str) -> Path:
+def save_summary_report(log_dir, content: str):
     summary_path = log_dir / "signal_summary.txt"
     summary_path.write_text(content, encoding="utf-8")
     return summary_path
@@ -271,8 +261,8 @@ def build_state_payload(now_str: str, results: list[dict[str, Any]]) -> dict[str
     }
 
 
-def save_state_json(state_dir: Path, payload: dict[str, Any]) -> Path:
-    state_path = state_dir / "signal_state.json"
+def save_state_json(payload: dict[str, Any]):
+    state_path = get_signal_state_path()
     state_path.write_text(
         json.dumps(payload, ensure_ascii=False, indent=2),
         encoding="utf-8",
@@ -352,13 +342,11 @@ def build_total_summary(results: list[dict[str, Any]], now_str: str) -> str:
 
 def main() -> None:
     try:
-        load_env()
+        now_str = datetime.now().astimezone().isoformat(timespec="seconds")
+        log_dir = get_log_dir()
+        get_state_dir()
 
         markets = get_trade_symbols()
-        now_str = datetime.now().astimezone().isoformat(timespec="seconds")
-        log_dir = ensure_log_dir()
-        state_dir = ensure_state_dir()
-
         results: list[dict[str, Any]] = []
 
         for market in markets:
@@ -387,7 +375,7 @@ def main() -> None:
         print(f"요약 로그 파일   : {summary_path}")
 
         state_payload = build_state_payload(now_str, results)
-        state_path = save_state_json(state_dir, state_payload)
+        state_path = save_state_json(state_payload)
 
         print(make_line("상태 파일 저장 완료"))
         print(f"상태 파일        : {state_path}")

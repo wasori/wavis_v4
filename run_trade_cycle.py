@@ -1,33 +1,35 @@
 from __future__ import annotations
 
-from pathlib import Path
 from datetime import datetime
 from typing import Any
 import json
-import os
 import sys
 
 import pandas as pd
 import requests
 from dotenv import load_dotenv
 
+from project_paths import (
+    get_env_path,
+    get_env_str,
+    get_project_root,
+    get_log_dir,
+    get_state_dir,
+    get_signal_state_path,
+    get_position_state_path,
+    get_trade_cycle_state_path,
+)
 
-PROJECT_ROOT = Path(__file__).resolve().parent
-ENV_PATH = PROJECT_ROOT / ".env"
+
+ENV_PATH = get_env_path()
+PROJECT_ROOT = get_project_root()
 BASE_URL = "https://api.upbit.com"
 
-
-def load_env() -> None:
-    load_dotenv(dotenv_path=ENV_PATH, override=False)
+load_dotenv(dotenv_path=ENV_PATH, override=False)
 
 
 def get_now_iso() -> str:
     return datetime.now().astimezone().isoformat(timespec="seconds")
-
-
-def get_env_str(key: str, default: str = "") -> str:
-    value = os.getenv(key, default)
-    return value.strip() if isinstance(value, str) else default
 
 
 def get_env_float(key: str, default: float) -> float:
@@ -44,19 +46,7 @@ def get_trade_symbols() -> list[str]:
     return symbols if symbols else ["KRW-BTC"]
 
 
-def get_state_dir() -> Path:
-    state_dir = PROJECT_ROOT / get_env_str("STATE_DIR", "state")
-    state_dir.mkdir(parents=True, exist_ok=True)
-    return state_dir
-
-
-def get_log_dir() -> Path:
-    log_dir = PROJECT_ROOT / get_env_str("LOG_DIR", "logs")
-    log_dir.mkdir(parents=True, exist_ok=True)
-    return log_dir
-
-
-def read_json_file(file_path: Path) -> dict | None:
+def read_json_file(file_path) -> dict | None:
     if not file_path.exists():
         return None
 
@@ -66,7 +56,7 @@ def read_json_file(file_path: Path) -> dict | None:
         return None
 
 
-def write_json_file(file_path: Path, payload: dict) -> None:
+def write_json_file(file_path, payload: dict) -> None:
     file_path.parent.mkdir(parents=True, exist_ok=True)
     file_path.write_text(
         json.dumps(payload, ensure_ascii=False, indent=2),
@@ -221,9 +211,8 @@ def analyze_market(market: str) -> dict[str, Any]:
     }
 
 
-def save_signal_state(now_str: str, results: list[dict[str, Any]]) -> Path:
-    state_dir = get_state_dir()
-    signal_state_path = state_dir / "signal_state.json"
+def save_signal_state(now_str: str, results: list[dict[str, Any]]):
+    signal_state_path = get_signal_state_path()
 
     entry_candidates = [item["market"] for item in results if item["entry"]]
 
@@ -244,7 +233,7 @@ def save_signal_state(now_str: str, results: list[dict[str, Any]]) -> Path:
 
 
 def get_position_state() -> dict | None:
-    return read_json_file(get_state_dir() / "position_state.json")
+    return read_json_file(get_position_state_path())
 
 
 def build_exit_trigger(position_state: dict, current_price: float) -> dict[str, Any]:
@@ -365,12 +354,9 @@ def build_cycle_result(
     return result
 
 
-def save_cycle_result(payload: dict[str, Any]) -> tuple[Path, Path]:
-    state_dir = get_state_dir()
-    log_dir = get_log_dir()
-
-    cycle_state_path = state_dir / "trade_cycle_state.json"
-    cycle_history_path = log_dir / "trade_cycle_history.log"
+def save_cycle_result(payload: dict[str, Any]) -> tuple:
+    cycle_state_path = get_trade_cycle_state_path()
+    cycle_history_path = get_log_dir() / "trade_cycle_history.log"
 
     write_json_file(cycle_state_path, payload)
 
@@ -416,7 +402,10 @@ def print_cycle_summary(cycle_result: dict[str, Any]) -> None:
     print_header("사이클 판단 결과")
     print(f"포지션 보유 여부        : {cycle_result['has_position']}")
     print(f"진입 후보 수            : {cycle_result['entry_candidate_count']}")
-    print(f"진입 후보 목록          : {', '.join(cycle_result['entry_candidates']) if cycle_result['entry_candidates'] else '없음'}")
+    print(
+        f"진입 후보 목록          : "
+        f"{', '.join(cycle_result['entry_candidates']) if cycle_result['entry_candidates'] else '없음'}"
+    )
     print(f"다음 액션              : {cycle_result['next_action']}")
     print(f"설명                  : {cycle_result['message']}")
 
@@ -444,10 +433,11 @@ def print_cycle_summary(cycle_result: dict[str, Any]) -> None:
 
 def main() -> None:
     try:
-        load_env()
-
         now_str = get_now_iso()
         markets = get_trade_symbols()
+
+        get_log_dir()
+        get_state_dir()
 
         print_header("WAVIS v4 트레이드 사이클 실행")
         print(f"실행 시각              : {now_str}")
